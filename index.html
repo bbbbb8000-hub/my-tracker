@@ -263,6 +263,16 @@
   }
   .ds-toggle-btn.active { background: var(--accent-2); color: #000; }
 
+  /* Plate number → kg conversion badge */
+  .plate-badge-btn {
+    background: rgba(255,255,255,0.04); border: 1px solid var(--text-3);
+    color: var(--text-3); font-family: 'Cairo', sans-serif; font-size: 10px; font-weight: 700;
+    padding: 4px 10px; border-radius: 20px; cursor: pointer; transition: all 0.2s;
+  }
+  .plate-badge-btn.active {
+    background: rgba(255,215,0,0.12); border-color: #ffd700; color: #ffd700;
+  }
+
   .ds-row {
     display: grid; grid-template-columns: 36px 1fr 1fr 80px; gap: 8px; align-items: center;
     margin-top: 8px; background: rgba(124,110,255,0.06); padding: 10px;
@@ -579,7 +589,7 @@ const firebaseConfig = {
 // متغيرات عامة آمنة
 let db = null;
 const USER_ID = 'faisal_profile'; 
-let appData = { weights: [], protein: {}, sessions: {}, prs: {}, weekSessions: {}, notes: {}, proteinTarget: 150, workoutDurations: {} };
+let appData = { weights: [], protein: {}, sessions: {}, prs: {}, weekSessions: {}, notes: {}, proteinTarget: 150, workoutDurations: {}, plateConfig: {} };
 
 // ============================================================
 // 1. دالة تحميل البيانات المحصنة والمزامنة الذكية
@@ -642,7 +652,8 @@ function mergeData(local, cloud) {
     weekSessions: mergeWeekSessions(local.weekSessions || {}, cloud.weekSessions || {}),
     notes: mergeNotes(local.notes || {}, cloud.notes || {}),
     proteinTarget: local.proteinTarget || cloud.proteinTarget || 150,
-    workoutDurations: mergeWorkoutDurations(local.workoutDurations || {}, cloud.workoutDurations || {})
+    workoutDurations: mergeWorkoutDurations(local.workoutDurations || {}, cloud.workoutDurations || {}),
+    plateConfig: { ...(cloud.plateConfig || {}), ...(local.plateConfig || {}) }
   };
 }
 
@@ -1485,9 +1496,12 @@ function buildExCardWithDay(ex, day, orderNum) {
       <div class="recommender-box" id="rec-${ex.id}"></div>
       <div class="sets-row">
         <div class="set-num" style="font-size:11px;color:var(--accent)">G</div>
-        <div class="set-num" style="font-size:11px;color:var(--accent)">كجم</div>
+        <div class="set-num" style="font-size:11px;color:var(--accent)" id="kg-header-${ex.id}">كجم</div>
         <div class="set-num" style="font-size:11px;color:var(--accent)">عدّات</div>
         <div class="set-num" style="font-size:11px;color:var(--accent)">RPE</div>
+      </div>
+      <div style="grid-column: span 4; margin-bottom:2px;">
+        <button type="button" class="plate-badge-btn" id="plate-badge-${ex.id}" onclick="configurePlateConversion('${ex.id}', '${ex.name.replace(/'/g,"\\'")}')">⚙️ جهاز مرقّم؟</button>
       </div>
       ${[1,2,3,4].map(s => `
         <div class="sets-row">
@@ -1513,6 +1527,71 @@ function buildExCardWithDay(ex, day, orderNum) {
       </div>
     </div>
   </div>`;
+}
+
+// ============================================================
+// معامل تحويل رقم البليت إلى كجم (لأجهزة الاستاك المرقّمة بدل الكيلو)
+// ============================================================
+// appData.plateConfig[exId] = { enabled: bool, base: kg الرقم 1, step: كجم لكل رقم إضافي }
+function getPlateConfig(exId) {
+  return appData.plateConfig[exId] || null;
+}
+function isPlateMode(exId) {
+  const c = getPlateConfig(exId);
+  return !!(c && c.enabled);
+}
+// يحول الرقم المكتوب على الجهاز إلى كجم فعلي: كجم = base + (الرقم - 1) × step
+function plateToKg(exId, plateNum) {
+  const c = getPlateConfig(exId);
+  if (!c || !c.enabled || !plateNum) return plateNum || 0;
+  return +(c.base + (plateNum - 1) * c.step).toFixed(2);
+}
+// العكس: من كجم محفوظ إلى الرقم التسلسلي (لعرضه في الخانة كما أدخله المستخدم)
+function kgToPlate(exId, kg) {
+  const c = getPlateConfig(exId);
+  if (!c || !c.enabled || !kg || !c.step) return kg || '';
+  return +(((kg - c.base) / c.step) + 1).toFixed(2);
+}
+
+function configurePlateConversion(exId, exName) {
+  const existing = getPlateConfig(exId);
+  const enable = confirm(`⚙️ إعداد جهاز مرقّم لتمرين "${exName}"\n\nهل الجهاز هنا مرقّم (1، 2، 3...) بدل الكيلو الحقيقي؟\n\nاضغط "موافق" للتفعيل، أو "إلغاء" لإيقاف التحويل والعودة لإدخال الكيلو مباشرة.`);
+  if (!enable) {
+    delete appData.plateConfig[exId];
+    save();
+    showToast('🔢 تم إيقاف وضع الترقيم — الخانة رجعت كجم عادي');
+    renderPlateBadge(exId);
+    return;
+  }
+  const baseInput = prompt('كام كيلو فعلي يعادل الرقم "1" على الجهاز؟', existing?.base ?? '5');
+  if (baseInput === null) return;
+  const stepInput = prompt('كل رقم إضافي بيزود كام كيلو؟ (مثال: لو رقم 1 = 5كجم ورقم 2 = 10كجم، فالزيادة = 5)', existing?.step ?? '5');
+  if (stepInput === null) return;
+  const base = parseFloat(baseInput);
+  const step = parseFloat(stepInput);
+  if (isNaN(base) || isNaN(step) || step <= 0) {
+    showToast('⚠️ أرقام غير صالحة، لم يتم الحفظ');
+    return;
+  }
+  appData.plateConfig[exId] = { enabled: true, base, step };
+  save();
+  showToast(`✅ تم الحفظ: رقم 1 = ${base} كجم، وكل رقم += ${step} كجم`);
+  renderPlateBadge(exId);
+  recalcExerciseStats(exId);
+}
+
+// يعرض شارة توضح إن التمرين في وضع "رقم بليت" بدل كجم، ويحدث placeholder الخانات
+function renderPlateBadge(exId) {
+  const badge = document.getElementById(`plate-badge-${exId}`);
+  const kgHeader = document.getElementById(`kg-header-${exId}`);
+  const on = isPlateMode(exId);
+  if (badge) badge.textContent = on ? '🔢 رقم البليت' : '⚙️ جهاز مرقّم؟';
+  if (badge) badge.classList.toggle('active', on);
+  if (kgHeader) kgHeader.textContent = on ? 'رقم' : 'كجم';
+  for (let s = 1; s <= 4; s++) {
+    const wEl = document.getElementById(`w-${exId}-${s}`);
+    if (wEl) wEl.placeholder = on ? 'رقم البليت' : '—';
+  }
 }
 
 function toggleDropSet(exId) {
@@ -1541,9 +1620,11 @@ function onExInput(exId) {
 // حساب وعرض الحجم الكلي / تقدير 1RM / أفضل مجموعة فقط — بلا أي حفظ في appData
 function recalcExerciseStats(exId) {
   let totalVol = 0, bestW = 0, bestR = 0;
+  const plateMode = isPlateMode(exId);
 
   for (let s = 1; s <= 4; s++) {
-    const w = parseFloat(document.getElementById(`w-${exId}-${s}`)?.value) || 0;
+    const raw = parseFloat(document.getElementById(`w-${exId}-${s}`)?.value) || 0;
+    const w = plateMode ? plateToKg(exId, raw) : raw;
     const r = parseInt(document.getElementById(`r-${exId}-${s}`)?.value) || 0;
     totalVol += w * r;
     if (w > bestW || (w === bestW && r > bestR)) { bestW = w; bestR = r; }
@@ -1551,7 +1632,8 @@ function recalcExerciseStats(exId) {
 
   const dsRow = document.getElementById(`ds-row-${exId}`);
   if (dsRow && !dsRow.classList.contains('hidden')) {
-    const dW = parseFloat(document.getElementById(`ds-w-${exId}`)?.value) || 0;
+    const dWraw = parseFloat(document.getElementById(`ds-w-${exId}`)?.value) || 0;
+    const dW = plateMode ? plateToKg(exId, dWraw) : dWraw;
     const dR = parseInt(document.getElementById(`ds-r-${exId}`)?.value) || 0;
     totalVol += (dW * dR);
   }
@@ -1581,24 +1663,31 @@ function autoSaveExercise(exId, vol, bestW, bestR, orm) {
   if (!currentDay) return;
   const key = currentDay.id + '_' + exId;
   const today = todayStr();
+  const plateMode = isPlateMode(exId);
   if (!appData.sessions[key]) appData.sessions[key] = [];
   appData.sessions[key] = appData.sessions[key].filter(l => l.date !== today);
 
   for (let s = 1; s <= 4; s++) {
-    const w = parseFloat(document.getElementById(`w-${exId}-${s}`)?.value) || 0;
+    const raw = parseFloat(document.getElementById(`w-${exId}-${s}`)?.value) || 0;
+    const w = plateMode ? plateToKg(exId, raw) : raw;
     const r = parseInt(document.getElementById(`r-${exId}-${s}`)?.value) || 0;
     const rpe = document.getElementById(`rpe-${exId}-${s}`)?.value || '';
     if (w > 0 || r > 0) {
-      appData.sessions[key].push({ date: today, weight: w, reps: r, volume: w * r, set: s, rpe: rpe });
+      const entry = { date: today, weight: w, reps: r, volume: w * r, set: s, rpe: rpe };
+      if (plateMode && raw > 0) entry.plateNum = raw;
+      appData.sessions[key].push(entry);
     }
   }
 
   const dsRow = document.getElementById(`ds-row-${exId}`);
   if (dsRow && !dsRow.classList.contains('hidden')) {
-    const dW = parseFloat(document.getElementById(`ds-w-${exId}`)?.value) || 0;
+    const dWraw = parseFloat(document.getElementById(`ds-w-${exId}`)?.value) || 0;
+    const dW = plateMode ? plateToKg(exId, dWraw) : dWraw;
     const dR = parseInt(document.getElementById(`ds-r-${exId}`)?.value) || 0;
     if (dW > 0 || dR > 0) {
-      appData.sessions[key].push({ date: today, weight: dW, reps: dR, volume: dW * dR, set: 'ds', rpe: '' });
+      const dsEntry = { date: today, weight: dW, reps: dR, volume: dW * dR, set: 'ds', rpe: '' };
+      if (plateMode && dWraw > 0) dsEntry.plateNum = dWraw;
+      appData.sessions[key].push(dsEntry);
     }
   }
 
@@ -1758,18 +1847,18 @@ function applyLastSessionToExercise(exId) {
     if (log.set === 'ds') {
       const dW = document.getElementById(`ds-w-${exId}`);
       const dR = document.getElementById(`ds-r-${exId}`);
-      if (dW) dW.value = log.weight || '';
+      if (dW) dW.value = (log.plateNum ?? log.weight) || '';
       if (dR) dR.value = log.reps || '';
       if (log.weight > 0) {
         document.getElementById(`ds-row-${exId}`)?.classList.remove('hidden');
         const btn = document.getElementById(`ds-btn-${exId}`);
-        if(btn) { btn.classList.add('active'); btn.textContent = '💧 Drop-Set نشط'; }
+        if (btn) { btn.classList.add('active'); btn.textContent = '💧 Drop-Set نشط'; }
       }
     } else {
       const wEl = document.getElementById(`w-${exId}-${log.set}`);
       const rEl = document.getElementById(`r-${exId}-${log.set}`);
       const rpeEl = document.getElementById(`rpe-${exId}-${log.set}`);
-      if (wEl) wEl.value = log.weight || '';
+      if (wEl) wEl.value = (log.plateNum ?? log.weight) || '';
       if (rEl) rEl.value = log.reps || '';
       if (rpeEl) rpeEl.value = log.rpe || '';
     }
@@ -1779,7 +1868,8 @@ function applyLastSessionToExercise(exId) {
 }
 
 function checkPR(exId, inputEl) {
-  const w = parseFloat(inputEl.value) || 0;
+  const raw = parseFloat(inputEl.value) || 0;
+  const w = isPlateMode(exId) ? plateToKg(exId, raw) : raw;
   if (w <= 0) return;
   const historicalPR = appData.prs[exId]?.weight || 0;
   if (historicalPR > 0 && w > historicalPR) {
@@ -1788,6 +1878,7 @@ function checkPR(exId, inputEl) {
 }
 
 function restoreExValues(ex, idx) {
+  renderPlateBadge(ex.id);
   const key = currentDay.id + '_' + ex.id;
   const stored = appData.sessions[key] || [];
   const today = todayStr();
@@ -1808,7 +1899,7 @@ function restoreExValues(ex, idx) {
       const wEl = document.getElementById(`w-${ex.id}-${log.set}`);
       const rEl = document.getElementById(`r-${ex.id}-${log.set}`);
       const rpeEl = document.getElementById(`rpe-${ex.id}-${log.set}`);
-      if (wEl) wEl.value = log.weight || '';
+      if (wEl) wEl.value = (log.plateNum ?? log.weight) || '';
       if (rEl) rEl.value = log.reps || '';
       if (rpeEl) rpeEl.value = log.rpe || '';
     }
@@ -2058,7 +2149,8 @@ function importData(input) {
         weekSessions: { ...appData.weekSessions, ...(imported.weekSessions || {}) },
         notes: { ...appData.notes, ...(imported.notes || {}) },
         proteinTarget: imported.proteinTarget || appData.proteinTarget || 150,
-        workoutDurations: { ...appData.workoutDurations, ...(imported.workoutDurations || {}) }
+        workoutDurations: { ...appData.workoutDurations, ...(imported.workoutDurations || {}) },
+        plateConfig: { ...appData.plateConfig, ...(imported.plateConfig || {}) }
       };
       save(); refreshDashboard(); showToast('✅ تم استيراد البيانات بنجاح!');
     } catch(err) { showToast('❌ الملف تالف أو غير صالح.'); }
