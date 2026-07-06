@@ -805,6 +805,9 @@ const DAYS = [
       { id:'tricep_push', name:'Tricep Pushdown Cable', icon:'⛓️', primary:'الترايسيبس (الرأس الجانبي والطويل)', secondary:'الساعد وتثبيت المعصم', allowDropSet: false,
         cue:'ثبّت الكوعين بجانب الجذع. افرد الذراع بالكامل للأسفل لأقصى انقباض.',
         yt:'https://www.youtube.com/results?search_query=tricep+pushdown+cable+machine+form', ytAlt:'https://www.youtube.com/results?search_query=overhead+cable+tricep+extension+form' },
+      { id:'cable_crunch', name:'Cable Crunch (Kneeling)', icon:'🔻', primary:'البطن (المستقيمة العلوية)', secondary:'المائلة الجانبية', allowDropSet: false,
+        cue:'اثبت الحوض دون حركة. انحنِ من الخصر فقط واقرّب المرفقين من الركبتين، اعصر البطن ثانية في القمة.',
+        yt:'https://www.youtube.com/results?search_query=cable+crunch+kneeling+form', ytAlt:'https://www.youtube.com/results?search_query=ab+crunch+machine+form' },
     ]
   },
   {
@@ -829,6 +832,9 @@ const DAYS = [
       { id:'hammer_cable', name:'Cable Hammer Curl (Rope)', icon:'🔨', primary:'البايسيبس والبراكياليس العميقة', secondary:'الساعد العليا (Brachioradialis)', allowDropSet: false,
         cue:'الإبهام للأعلى دائماً. ثبات الكوع التام لمنع تدخل الأكتاف.',
         yt:'https://www.youtube.com/results?search_query=cable+hammer+curl+rope+form', ytAlt:'https://www.youtube.com/results?search_query=hammer+curl+machine+form' },
+      { id:'wrist_curl', name:'Cable Wrist Curl (Palm Up)', icon:'✊', primary:'الساعد (العاطفة الأمامية)', secondary:'قبضة اليد', allowDropSet: false,
+        cue:'اسند الساعد على الفخذ، حرّك من المعصم فقط. ثبّت ثانية كاملة في الانقباض العلوي.',
+        yt:'https://www.youtube.com/results?search_query=cable+wrist+curl+form', ytAlt:'https://www.youtube.com/results?search_query=dumbbell+wrist+curl+forearm+technique' },
     ]
   },
   {
@@ -874,6 +880,9 @@ const DAYS = [
       { id:'u_tri', name:'Cable Tricep Pushdown (Bar)', icon:'⛓️', primary:'الترايسيبس (الرأس الإنسي والجانبي)', secondary:'الساعد وعضلات تثبيت الكتف', allowDropSet: false,
         cue:'تحكم في الوزن أثناء العودة الصاعدة لمدة ثانيتين لزيادة الضخامة.',
         yt:'https://www.youtube.com/results?search_query=cable+tricep+pushdown+bar+form', ytAlt:'https://www.youtube.com/results?search_query=machine+tricep+extension+form' },
+      { id:'u_shrug', name:'Cable/Machine Shrug', icon:'⬆️', primary:'الترابيس العلوية', secondary:'الرقبة الجانبية، الساعد (قبضة)', allowDropSet: false,
+        cue:'ارفع الكتفين مباشرة للأعلى نحو الأذن دون لف. ثبّت ثانية كاملة في القمة ثم انزل ببطء.',
+        yt:'https://www.youtube.com/results?search_query=cable+shrug+trap+form', ytAlt:'https://www.youtube.com/results?search_query=machine+shrug+trap+technique' },
     ]
   },
   {
@@ -895,6 +904,9 @@ const DAYS = [
       { id:'l_calf', name:'Seated Calf Raise Machine', icon:'🦶', primary:'النعلية العميقة (Soleus)', secondary:'وتر أكيلس وأربطة الكاحل', allowDropSet: false,
         cue:'النزول البطيء والثبات 2 ثانية بالأسفل يفعّل ألياف البطة العميقة.',
         yt:'https://www.youtube.com/results?search_query=seated+calf+raise+machine+form', ytAlt:'https://www.youtube.com/results?search_query=standing+calf+raise+machine+form' },
+      { id:'back_ext', name:'Back Extension Machine (45°)', icon:'🔙', primary:'أسفل الظهر (الباسطة الفقرية)', secondary:'المؤخرة، الأوتار الخلفية', allowDropSet: false,
+        cue:'انحناء من الحوض فقط، ظهر مستقيم طوال الحركة. لا تفرط في تمديد أسفل الظهر بالقمة.',
+        yt:'https://www.youtube.com/results?search_query=back+extension+machine+45+degree+form', ytAlt:'https://www.youtube.com/results?search_query=hyperextension+bench+lower+back+form' },
     ]
   },
 ];
@@ -1013,13 +1025,17 @@ function updateMuscleDashboard() {
   const muscleData = {
     'الصدر': { volume: 0, prevVolume: 0, sets: 0 },
     'الظهر': { volume: 0, prevVolume: 0, sets: 0 },
+    'أسفل الظهر': { volume: 0, prevVolume: 0, sets: 0 },
+    'الترابيس العلوية': { volume: 0, prevVolume: 0, sets: 0 },
     'الأكتاف': { volume: 0, prevVolume: 0, sets: 0 },
+    'الساعد': { volume: 0, prevVolume: 0, sets: 0 },
+    'البايسيبس': { volume: 0, prevVolume: 0, sets: 0 },
+    'الترايسيبس': { volume: 0, prevVolume: 0, sets: 0 },
     'الرباعية': { volume: 0, prevVolume: 0, sets: 0 },
     'الخلفية (Hams)': { volume: 0, prevVolume: 0, sets: 0 },
     'المؤخرة': { volume: 0, prevVolume: 0, sets: 0 },
     'البطة': { volume: 0, prevVolume: 0, sets: 0 },
-    'البايسيبس': { volume: 0, prevVolume: 0, sets: 0 },
-    'الترايسيبس': { volume: 0, prevVolume: 0, sets: 0 }
+    'البطن': { volume: 0, prevVolume: 0, sets: 0 }
   };
 
   Object.entries(sessions).forEach(([key, logs]) => {
@@ -1031,14 +1047,18 @@ function updateMuscleDashboard() {
 
     let group = 'الرباعية';
     if (ex.primary.includes('الصدر')) group = 'الصدر';
+    else if (ex.primary.includes('أسفل الظهر')) group = 'أسفل الظهر';
     else if (ex.primary.includes('الظهر') || ex.primary.includes('اللاتس')) group = 'الظهر';
+    else if (ex.primary.includes('الترابيس')) group = 'الترابيس العلوية';
     else if (ex.primary.includes('الأكتاف') || ex.primary.includes('الكتف')) group = 'الأكتاف';
+    else if (ex.primary.includes('الساعد')) group = 'الساعد';
     else if (ex.primary.includes('بايسيبس') || ex.primary.includes('البايسيبس')) group = 'البايسيبس';
     else if (ex.primary.includes('ترايسيبس') || ex.primary.includes('الترايسيبس')) group = 'الترايسيبس';
     else if (ex.primary.includes('الرباعية')) group = 'الرباعية';
     else if (ex.primary.includes('الأوتار')) group = 'الخلفية (Hams)';
     else if (ex.primary.includes('المؤخرة') || ex.primary.includes('الألوية')) group = 'المؤخرة';
     else if (ex.primary.includes('البطة') || ex.primary.includes('السمانة') || ex.primary.includes('نعلية') || ex.primary.includes('Soleus')) group = 'البطة';
+    else if (ex.primary.includes('البطن')) group = 'البطن';
 
     logs.forEach(log => {
       const logCycle = cycleIndex.order.get(log.date + '|' + dayId);
@@ -1057,7 +1077,7 @@ function updateMuscleDashboard() {
 
   const labels = Object.keys(muscleData);
   const volumes = labels.map(l => muscleData[l].volume);
-  const bgColors = ['#ff5252', '#00e5ff', '#ffd700', '#2ecc71', '#16a085', '#f39c12', '#27ae60', '#9d8eff', '#e056fd'];
+  const bgColors = ['#ff5252', '#00e5ff', '#3498db', '#d35400', '#ffd700', '#7f8c8d', '#9d8eff', '#e056fd', '#2ecc71', '#16a085', '#f39c12', '#27ae60', '#c0392b'];
 
   const ctx = document.getElementById('muscleDoughnutChart').getContext('2d');
   if (muscleChartInst) muscleChartInst.destroy();
